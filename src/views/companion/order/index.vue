@@ -18,12 +18,17 @@
 
       <el-form :inline="true" :model="queryParams" class="filter-form">
         <el-form-item label="项目">
-          <el-select v-model="queryParams.game" placeholder="全部" clearable>
-            <el-option v-for="item in gameOptions" :key="item" :label="item" :value="item" />
+          <el-select v-model="queryParams.projectCode" placeholder="全部" clearable>
+            <el-option
+              v-for="item in projectOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
-          <el-select v-model="queryParams.status" placeholder="全部" clearable>
+          <el-select v-model="queryParams.orderStatus" placeholder="全部" clearable>
             <el-option
               v-for="item in statusFilters"
               :key="item.value"
@@ -52,9 +57,6 @@
             @keyup.enter="handleQuery"
           />
         </el-form-item>
-        <el-form-item v-if="isManager">
-          <el-checkbox v-model="queryParams.onlyHighValue">仅看高价值订单</el-checkbox>
-        </el-form-item>
         <el-form-item>
           <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
           <el-button icon="Refresh" @click="resetQuery">重置</el-button>
@@ -71,26 +73,26 @@
         @selection-change="handleSelectionChange"
       >
         <el-table-column type="selection" width="50" align="center" v-if="isManager" />
-        <el-table-column prop="orderId" label="订单号" min-width="150" />
-        <el-table-column prop="game" label="项目" min-width="120" />
-        <el-table-column prop="mode" label="模式" min-width="120" />
-        <el-table-column prop="boss" label="老板" min-width="120" v-if="isManager || isBooster" />
-        <el-table-column prop="booster" label="打手" min-width="120" v-if="isManager || isBoss" />
-        <el-table-column label="金额" min-width="110" v-if="isManager || isBoss">
+        <el-table-column prop="orderNo" label="订单号" min-width="160" />
+        <el-table-column prop="game" label="项目" min-width="140" />
+        <el-table-column prop="mode" label="模式" min-width="140" />
+        <el-table-column prop="boss" label="老板" min-width="140" v-if="isManager || isBooster" />
+        <el-table-column prop="booster" label="打手" min-width="140" v-if="isManager || isBoss" />
+        <el-table-column label="金额" min-width="120" v-if="isManager || isBoss">
           <template #default="scope">
             {{ formatNumber(scope.row.amount, 'currency') }}
           </template>
         </el-table-column>
-        <el-table-column label="状态" min-width="120">
+        <el-table-column label="状态" min-width="130">
           <template #default="scope">
             <el-tag :type="statusTagType(scope.row.status)">
               {{ statusLabel(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="startAt" label="开局时间" min-width="150" />
-        <el-table-column prop="createdAt" label="下单时间" min-width="150" />
-        <el-table-column label="操作" min-width="260" fixed="right">
+        <el-table-column prop="startAt" label="开局时间" min-width="160" />
+        <el-table-column prop="createdAt" label="下单时间" min-width="160" />
+        <el-table-column label="操作" min-width="280" fixed="right">
           <template #default="scope">
             <el-space wrap size="small">
               <el-button link type="primary" @click="openDetail(scope.row)">详情</el-button>
@@ -103,7 +105,7 @@
                 快速派单
               </el-button>
               <el-button
-                v-if="isManager && ['dispatching', 'waitingPay'].includes(scope.row.status)"
+                v-if="isManager && ['dispatching', 'waitingPay', 'confirmed'].includes(scope.row.status)"
                 link
                 type="danger"
                 @click="handleCancel(scope.row)"
@@ -111,7 +113,7 @@
                 取消
               </el-button>
               <el-button
-                v-if="isManager && scope.row.status === 'inProgress'"
+                v-if="isManager && ['inProgress', 'confirmed'].includes(scope.row.status)"
                 link
                 type="success"
                 @click="handleComplete(scope.row)"
@@ -127,23 +129,15 @@
                 去支付
               </el-button>
               <el-button
-                v-if="isBoss && scope.row.status === 'completed'"
-                link
-                type="success"
-                @click="handleReview(scope.row)"
-              >
-                写评价
-              </el-button>
-              <el-button
-                v-if="isBooster && scope.row.status === 'dispatching'"
+                v-if="isBooster && scope.row.status === 'confirmed'"
                 link
                 type="primary"
                 @click="handleAccept(scope.row)"
               >
-                我要接单
+                接单
               </el-button>
               <el-button
-                v-if="isBooster && scope.row.status === 'confirmed'"
+                v-if="isBooster && scope.row.status === 'inProgress'"
                 link
                 type="warning"
                 @click="handleStart(scope.row)"
@@ -174,13 +168,14 @@
 
     <el-drawer
       v-model="detailVisible"
-      :title="detailOrder ? `订单 ${detailOrder.orderId}` : '订单详情'"
+      :title="detailOrder ? `订单 ${detailOrder.orderNo}` : '订单详情'"
       size="500px"
     >
       <div v-if="detailOrder" class="detail-container">
         <section class="detail-section">
           <h4>基础信息</h4>
           <el-descriptions :column="1" border>
+            <el-descriptions-item label="订单号">{{ detailOrder.orderNo }}</el-descriptions-item>
             <el-descriptions-item label="老板">{{ detailOrder.boss }}</el-descriptions-item>
             <el-descriptions-item label="打手">
               {{ detailOrder.booster || '待派单' }}
@@ -200,6 +195,12 @@
             <el-descriptions-item label="订单金额">
               {{ formatNumber(detailOrder.amount, 'currency') }}
             </el-descriptions-item>
+            <el-descriptions-item label="结算状态">
+              {{ detailOrder.settlementLabel }}
+            </el-descriptions-item>
+            <el-descriptions-item label="支付状态">
+              {{ detailOrder.payStatusLabel }}
+            </el-descriptions-item>
           </el-descriptions>
         </section>
 
@@ -209,12 +210,16 @@
           <el-tag v-else type="info" size="small">语音选填</el-tag>
           <p class="order-note">
             {{ detailOrder.requirement || '暂无备注' }}
+            <br v-if="detailOrder.internalRemark" />
+            <span v-if="detailOrder.internalRemark">
+              内部备注：{{ detailOrder.internalRemark }}
+            </span>
           </p>
         </section>
 
         <section class="detail-section">
           <h4>状态流转</h4>
-          <el-timeline>
+          <el-timeline v-if="detailOrder.timeline.length">
             <el-timeline-item
               v-for="(item, index) in detailOrder.timeline"
               :key="index"
@@ -224,6 +229,7 @@
               {{ item.label }}
             </el-timeline-item>
           </el-timeline>
+          <el-empty v-else description="暂无流转信息" />
         </section>
       </div>
       <el-empty v-else description="请选择订单" />
@@ -232,28 +238,38 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch, getCurrentInstance } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import Pagination from '@/components/Pagination'
 import {
   assignOrder,
+  getOrder,
+  getOrderMetrics,
   listOrders,
   updateOrderStatus
 } from '@/api/companion/order'
 import useUserStore from '@/store/modules/user'
+import { parseTime } from '@/utils/ruoyi'
+
+const { proxy } = getCurrentInstance() || {}
+const dictRefs = proxy?.useDict
+  ? proxy.useDict('companion_service_mode', 'companion_settlement_status')
+  : {}
+const serviceModeDict = dictRefs?.companion_service_mode || ref([])
+const settlementDict = dictRefs?.companion_settlement_status || ref([])
 
 const loading = ref(false)
 const orderList = ref([])
 const total = ref(0)
+const projectOptions = ref([])
 
 const queryParams = reactive({
   pageNum: 1,
   pageSize: 10,
-  game: '',
-  status: '',
-  keyword: '',
-  onlyHighValue: false
+  projectCode: '',
+  orderStatus: '',
+  keyword: ''
 })
 
 const dateRange = ref([])
@@ -264,15 +280,15 @@ const statusMap = {
   waitingPay: { label: '待支付', tagType: 'danger' },
   inProgress: { label: '进行中', tagType: 'info' },
   completed: { label: '已完成', tagType: 'success' },
-  cancelled: { label: '已取消', tagType: 'info' }
+  cancelled: { label: '已取消', tagType: 'info' },
+  refunding: { label: '售后中', tagType: 'danger' },
+  refunded: { label: '已退款', tagType: 'success' }
 }
 
 const statusFilters = Object.entries(statusMap).map(([value, meta]) => ({
   value,
   label: meta.label
 }))
-
-const gameOptions = ['王者荣耀', '英雄联盟', '永劫无间', 'APEX 英雄', '绝地求生']
 
 const summary = reactive({
   pending: 0,
@@ -340,130 +356,92 @@ const formatNumber = (value, format) => {
   return number.toLocaleString('zh-CN')
 }
 
-const buildQuery = () => {
-  const query = {
-    pageNum: queryParams.pageNum,
-    pageSize: queryParams.pageSize,
-    scope: viewScope.value
-  }
-  if (queryParams.game) {
-    query.game = queryParams.game
-  }
-  if (queryParams.status) {
-    query.status = queryParams.status
-  }
-  if (queryParams.keyword) {
-    query.keyword = queryParams.keyword
-  }
-  if (queryParams.onlyHighValue) {
-    query.highValue = true
-  }
-  if (dateRange.value && dateRange.value.length === 2) {
-    query.beginTime = dateRange.value[0]
-    query.endTime = dateRange.value[1]
-  }
-  return query
+const serviceModeLabel = (value) => {
+  const dict = serviceModeDict.value || []
+  const target = dict.find((item) => item.value === value)
+  return target ? target.label : value || '未设置'
 }
 
-const fallbackResponse = {
-  rows: [
-    {
-      orderId: 'OD2025102401',
-      boss: '林染',
-      booster: '',
-      boosterId: null,
-      game: '英雄联盟',
-      mode: '单双排',
-      amount: 268,
-      status: 'dispatching',
-      startAt: '2025-10-24 21:00',
-      createdAt: '2025-10-24 18:10',
-      tierGoal: '钻石 I → 大师 V',
-      voice: true,
-      requirement: '希望打野多帮下路，晚上22点前结束。',
-      timeline: [
-        { label: '下单成功', time: '2025-10-24 18:10', type: 'primary' },
-        { label: '待派单', time: '2025-10-24 18:11', type: 'warning' }
-      ]
-    },
-    {
-      orderId: 'OD2025102398',
-      boss: '江雪',
-      booster: '花落成双',
-      boosterId: 1001,
-      game: '王者荣耀',
-      mode: '赛季上分',
-      amount: 188,
-      status: 'inProgress',
-      startAt: '2025-10-24 19:30',
-      createdAt: '2025-10-24 18:00',
-      tierGoal: '星耀 IV → 王者 10 星',
-      voice: true,
-      requirement: '想从中路带节奏，语音开黑。',
-      timeline: [
-        { label: '下单成功', time: '2025-10-24 18:00', type: 'primary' },
-        { label: '打手接单', time: '2025-10-24 18:05', type: 'success' },
-        { label: '进行中', time: '2025-10-24 19:35', type: 'info' }
-      ]
-    },
-    {
-      orderId: 'OD2025102389',
-      boss: '陈昊',
-      booster: '北城以南',
-      boosterId: 1002,
-      game: '英雄联盟',
-      mode: '峡谷之巅训练',
-      amount: 328,
-      status: 'waitingPay',
-      startAt: '2025-10-25 14:00',
-      createdAt: '2025-10-24 17:40',
-      tierGoal: '大师 → 宗师',
-      voice: true,
-      requirement: '提供训练计划，配合夜间训练。',
-      timeline: [
-        { label: '下单成功', time: '2025-10-24 17:40', type: 'primary' },
-        { label: '待付款', time: '2025-10-24 17:41', type: 'danger' }
-      ]
-    },
-    {
-      orderId: 'OD2025102376',
-      boss: '南巷清风',
-      booster: '星野见',
-      boosterId: 1003,
-      game: '永劫无间',
-      mode: '三排冲榜',
-      amount: 458,
-      status: 'completed',
-      startAt: '2025-10-23 21:00',
-      createdAt: '2025-10-23 18:22',
-      tierGoal: '顶星五段',
-      voice: true,
-      requirement: '想获取比赛指挥建议。',
-      timeline: [
-        { label: '下单成功', time: '2025-10-23 18:22', type: 'primary' },
-        { label: '打手接单', time: '2025-10-23 18:30', type: 'success' },
-        { label: '服务完成', time: '2025-10-23 23:15', type: 'success' }
-      ]
+const settlementLabel = (value) => {
+  const dict = settlementDict.value || []
+  const target = dict.find((item) => item.value === value)
+  return target ? target.label : value || '未设置'
+}
+
+const buildTimeline = (order) => {
+  const items = []
+  const format = (time) => (time ? parseTime(time, '{y}-{m}-{d} {h}:{i}') : '—')
+
+  if (order.createdTime) {
+    items.push({ label: '下单成功', time: format(order.createdTime), type: 'primary' })
+  }
+  if (order.orderStatus === 'waitingPay') {
+    items.push({ label: '待支付', time: format(order.createdTime), type: 'danger' })
+  }
+  if (order.boosterId) {
+    items.push({ label: '打手接单', time: format(order.updatedTime), type: 'success' })
+  }
+  if (order.orderStatus === 'confirmed') {
+    items.push({ label: '待开局', time: format(order.startTime), type: 'info' })
+  }
+  if (order.orderStatus === 'inProgress') {
+    items.push({ label: '进行中', time: format(order.startTime), type: 'info' })
+  }
+  if (order.orderStatus === 'completed') {
+    items.push({ label: '服务完成', time: format(order.finishTime), type: 'success' })
+  }
+  if (order.orderStatus === 'cancelled') {
+    items.push({ label: '已取消', time: format(order.cancelTime), type: 'warning' })
+  }
+
+  return items.filter((item) => item.time && item.time !== '—')
+}
+
+const normalizeOrder = (item = {}) => {
+  const id = item.orderId
+  const amount = Number(item.payableAmount ?? item.amount ?? 0)
+  const tierGoal =
+    item.tierFrom && item.tierTo
+      ? `${item.tierFrom} → ${item.tierTo}`
+      : item.tierTo || item.tierFrom || ''
+  const status = item.orderStatus || 'dispatching'
+
+  return {
+    ...item,
+    id,
+    orderNo: item.orderNo || (id ? `OD${String(id).padStart(6, '0')}` : '—'),
+    boss: item.bossName || '—',
+    booster: item.boosterName || '',
+    boosterId: item.boosterId,
+    projectCode: item.projectCode,
+    game: item.gameName || '—',
+    mode: serviceModeLabel(item.serviceMode),
+    rawMode: item.serviceMode,
+    status,
+    amount,
+    startAt: item.startTime ? parseTime(item.startTime, '{y}-{m}-{d} {h}:{i}') : '—',
+    createdAt: item.createdTime ? parseTime(item.createdTime, '{y}-{m}-{d} {h}:{i}') : '—',
+    tierGoal,
+    voice: item.voiceRequired === true || item.voiceRequired === 'Y',
+    requirement: item.bossRemark || '',
+    internalRemark: item.internalRemark || '',
+    settlementLabel: settlementLabel(item.settlementStatus),
+    payStatusLabel: item.payStatus ? statusLabel(item.payStatus) || item.payStatus : '—',
+    timeline: buildTimeline(item)
+  }
+}
+
+const buildProjectOptions = (rows = []) => {
+  const map = new Map()
+  rows.forEach((item) => {
+    if (!item.projectCode) {
+      return
     }
-  ],
-  total: 4,
-  summary: {
-    pending: 1,
-    inProgress: 1,
-    completedToday: 7,
-    gmv: 12480
-  }
-}
-
-const detailVisible = ref(false)
-const detailOrder = ref(null)
-const selectedIds = ref([])
-
-const setSummary = (data = {}) => {
-  summary.pending = data.pending ?? 0
-  summary.inProgress = data.inProgress ?? 0
-  summary.completedToday = data.completedToday ?? 0
-  summary.gmv = data.gmv ?? 0
+    if (!map.has(item.projectCode)) {
+      map.set(item.projectCode, item.gameName || item.projectCode)
+    }
+  })
+  projectOptions.value = Array.from(map.entries()).map(([value, label]) => ({ value, label }))
 }
 
 const recalcSummary = () => {
@@ -474,10 +452,10 @@ const recalcSummary = () => {
     gmv: 0
   }
   orderList.value.forEach((item) => {
-    if (item.status === 'dispatching' || item.status === 'waitingPay') {
+    if (['dispatching', 'waitingPay'].includes(item.status)) {
       stats.pending += 1
     }
-    if (item.status === 'confirmed' || item.status === 'inProgress') {
+    if (['confirmed', 'inProgress'].includes(item.status)) {
       stats.inProgress += 1
     }
     if (item.status === 'completed') {
@@ -487,21 +465,62 @@ const recalcSummary = () => {
       stats.gmv += Number(item.amount || 0)
     }
   })
-  setSummary(stats)
+  summary.pending = stats.pending
+  summary.inProgress = stats.inProgress
+  summary.completedToday = stats.completedToday
+  summary.gmv = stats.gmv
+}
+
+const applyMetrics = (data) => {
+  if (data && Object.prototype.hasOwnProperty.call(data, 'revenue')) {
+    summary.gmv = Number(data.revenue || summary.gmv)
+  }
+}
+
+const buildQuery = () => {
+  const query = {
+    pageNum: queryParams.pageNum,
+    pageSize: queryParams.pageSize,
+    scope: viewScope.value
+  }
+  if (queryParams.projectCode) {
+    query.projectCode = queryParams.projectCode
+  }
+  if (queryParams.orderStatus) {
+    query.status = queryParams.orderStatus
+  }
+  if (queryParams.keyword) {
+    query.keyword = queryParams.keyword
+  }
+  if (dateRange.value && dateRange.value.length === 2) {
+    query.beginTime = dateRange.value[0]
+    query.endTime = dateRange.value[1]
+  }
+  return query
 }
 
 const fetchOrders = async () => {
   loading.value = true
   try {
-    const { rows, total: count, summary: summaryData } = await listOrders(buildQuery())
-    orderList.value = Array.isArray(rows) && rows.length ? rows : fallbackResponse.rows
-    total.value = typeof count === 'number' ? count : orderList.value.length
-    setSummary(summaryData || fallbackResponse.summary)
+    const query = buildQuery()
+    const [tableRes, metricsRes] = await Promise.all([
+      listOrders(query),
+      getOrderMetrics({ scope: viewScope.value })
+    ])
+    const rows = Array.isArray(tableRes?.rows) ? tableRes.rows : []
+    orderList.value = rows.map(normalizeOrder)
+    total.value = typeof tableRes?.total === 'number' ? tableRes.total : rows.length
+    buildProjectOptions(rows)
+    recalcSummary()
+    applyMetrics(metricsRes?.data?.summary || metricsRes?.data)
   } catch (error) {
-    console.warn('[order] 获取订单列表失败，使用默认数据。', error)
-    orderList.value = fallbackResponse.rows
-    total.value = fallbackResponse.total
-    setSummary(fallbackResponse.summary)
+    console.warn('[order] 获取订单列表失败', error)
+    orderList.value = []
+    total.value = 0
+    summary.pending = 0
+    summary.inProgress = 0
+    summary.completedToday = 0
+    summary.gmv = 0
   } finally {
     loading.value = false
   }
@@ -513,58 +532,73 @@ const handleQuery = () => {
 }
 
 const resetQuery = () => {
-  queryParams.game = ''
-  queryParams.status = ''
+  queryParams.projectCode = ''
+  queryParams.orderStatus = ''
   queryParams.keyword = ''
-  queryParams.onlyHighValue = false
   dateRange.value = []
   queryParams.pageNum = 1
   fetchOrders()
 }
 
+const selectedIds = ref([])
+const detailVisible = ref(false)
+const detailOrder = ref(null)
+
 const handleSelectionChange = (selection) => {
-  selectedIds.value = selection.map((item) => item.orderId)
+  selectedIds.value = selection.map((item) => item.id)
 }
 
-const openDetail = (row) => {
-  detailOrder.value = row
+const openDetail = async (row) => {
   detailVisible.value = true
+  detailOrder.value = normalizeOrder(row)
+  if (!row || !row.id) {
+    return
+  }
+  try {
+    const { data } = await getOrder(row.id)
+    if (data) {
+      detailOrder.value = normalizeOrder(data)
+    }
+  } catch (error) {
+    console.warn('[order] 获取订单详情失败', error)
+  }
 }
 
 const updateStatus = async (order, status, successMessage) => {
   try {
-    await updateOrderStatus(order.orderId, status)
-    order.status = status
+    await updateOrderStatus(order.id, status)
     ElMessage.success(successMessage)
+    fetchOrders()
   } catch (error) {
-    console.warn('[order] 更新状态失败，已启用本地回退。', error)
-    order.status = status
-    ElMessage.warning('接口未就绪，已临时更新本地状态')
-  } finally {
-    recalcSummary()
+    console.warn('[order] 更新状态失败', error)
+    ElMessage.error('状态更新失败，请稍后重试')
   }
 }
 
 const handleAssign = async (order) => {
   try {
-    await assignOrder(order.orderId, order.boosterId || '')
-    order.status = 'confirmed'
-    ElMessage.success('派单指令已发送')
+    const { value } = await ElMessageBox.prompt('请输入要指派的打手ID', '派单', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputValue: order.boosterId ? String(order.boosterId) : '',
+      inputPattern: /^[0-9]+$/,
+      inputErrorMessage: '请输入数字ID'
+    })
+    await assignOrder(order.id, Number(value))
+    ElMessage.success('派单指令已发出')
+    fetchOrders()
   } catch (error) {
-    console.warn('[order] 派单接口未就绪，模拟成功。', error)
-    order.status = 'confirmed'
-    ElMessage.warning('接口未就绪，已模拟派单成功')
-  } finally {
-    recalcSummary()
+    if (error === 'cancel') {
+      return
+    }
+    console.warn('[order] 派单失败', error)
+    ElMessage.error('派单失败，请稍后重试')
   }
 }
 
 const handleCancel = (order) => updateStatus(order, 'cancelled', '订单已取消')
 const handleComplete = (order) => updateStatus(order, 'completed', '订单已标记完成')
 const handlePay = (order) => updateStatus(order, 'confirmed', '支付成功，已通知运营派单')
-const handleReview = () => {
-  ElMessage.success('感谢反馈！评价功能可在后端完成后接入。')
-}
 const handleAccept = (order) => updateStatus(order, 'confirmed', '接单成功，请及时联系老板')
 const handleStart = (order) => updateStatus(order, 'inProgress', '已标记为进行中')
 const handleSubmit = (order) => updateStatus(order, 'completed', '提交完成，等待老板确认')
@@ -643,3 +677,4 @@ watch(
   line-height: 1.6;
 }
 </style>
+

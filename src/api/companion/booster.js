@@ -35,7 +35,7 @@ export const changeBoosterStatus = (boosterId, status) => {
   return request({
     url: `/companion/boosters/${boosterId}/status`,
     method: 'patch',
-    data: { status }
+    params: { status }
   })
 }
 

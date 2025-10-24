@@ -5,7 +5,7 @@
         <div class="card-header">
           <div>
             <span class="card-title">打手资源概览</span>
-            <small class="card-subtitle">共 {{ total }} 名打手，可按项目与状态筛选</small>
+            <small class="card-subtitle">共 {{ total }} 名打手，可按模式与状态筛选</small>
           </div>
           <el-button type="primary" plain v-if="isManager" @click="handleAdd">
             新增打手
@@ -17,14 +17,19 @@
         <el-form-item label="关键词">
           <el-input
             v-model="queryParams.keyword"
-            placeholder="昵称 / 标签 / 技能"
+            placeholder="编号 / 姓名 / 标签"
             clearable
             @keyup.enter="handleQuery"
           />
         </el-form-item>
-        <el-form-item label="项目">
-          <el-select v-model="queryParams.game" placeholder="全部项目" clearable>
-            <el-option v-for="item in gameOptions" :key="item" :label="item" :value="item" />
+        <el-form-item label="计费模式">
+          <el-select v-model="queryParams.pricingMode" placeholder="全部模式" clearable>
+            <el-option
+              v-for="item in pricingOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="状态">
@@ -62,12 +67,7 @@
               <div class="booster-meta">
                 <span class="booster-name">{{ scope.row.name }}</span>
                 <span class="booster-tags">
-                  <el-tag
-                    v-for="tag in scope.row.tags"
-                    :key="tag"
-                    size="small"
-                    type="info"
-                  >
+                  <el-tag v-for="tag in scope.row.tags" :key="tag" size="small" type="info">
                     {{ tag }}
                   </el-tag>
                 </span>
@@ -77,32 +77,40 @@
         </el-table-column>
         <el-table-column label="核心项目" min-width="180">
           <template #default="scope">
-            {{ scope.row.games.join('、') }}
+            {{ scope.row.games.length ? scope.row.games.join(' · ') : '—' }}
           </template>
         </el-table-column>
-        <el-table-column prop="rank" label="段位/段数" min-width="120" />
-        <el-table-column label="小时价格" min-width="110">
+        <el-table-column prop="rank" label="段位/段数" min-width="140" />
+        <el-table-column label="计费模式" min-width="120">
           <template #default="scope">
-            {{ formatNumber(scope.row.price, 'currency') }}
+            {{ scope.row.pricingModeLabel }}
           </template>
         </el-table-column>
-        <el-table-column prop="ordersThisWeek" label="本周接单" min-width="110" />
+        <el-table-column label="小时价格" min-width="120">
+          <template #default="scope">
+            <span v-if="scope.row.price > 0">
+              {{ formatNumber(scope.row.price, 'currency') }}
+            </span>
+            <span v-else>—</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="ordersThisWeek" label="本周接单" min-width="120" />
         <el-table-column prop="avgResponse" label="平均响应" min-width="120" />
         <el-table-column label="评分" min-width="100">
           <template #default="scope">
             <el-tag type="warning" size="small">
-              {{ scope.row.rating.toFixed(1) }}
+              {{ Number(scope.row.rating || 0).toFixed(1) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="状态" min-width="110">
+        <el-table-column label="状态" min-width="120">
           <template #default="scope">
             <el-tag :type="statusTagType(scope.row.status)">
               {{ statusLabel(scope.row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" min-width="200" fixed="right">
+        <el-table-column label="操作" min-width="220" fixed="right">
           <template #default="scope">
             <el-space>
               <el-button link type="primary" @click="openDetail(scope.row)">详情</el-button>
@@ -112,7 +120,7 @@
                 type="success"
                 @click="handleToggleStatus(scope.row)"
               >
-                {{ scope.row.status === 'online' ? '设为休息' : '设为在线' }}
+                {{ statusLabel(scope.row.status) === '在线' ? '设为休息' : '设为在线' }}
               </el-button>
               <el-button
                 v-if="isManager"
@@ -148,20 +156,35 @@
         <section class="detail-section">
           <h4>基础信息</h4>
           <el-descriptions :column="1" border>
-            <el-descriptions-item label="主打项目">
-              {{ detailBooster.games.join('、') }}
+            <el-descriptions-item label="打手编号">
+              {{ detailBooster.boosterCode || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="联系方式">
+              {{ detailBooster.mobile || '—' }}
             </el-descriptions-item>
             <el-descriptions-item label="段位等级">
-              {{ detailBooster.rank }}
+              {{ detailBooster.rank || '—' }}
             </el-descriptions-item>
-            <el-descriptions-item label="小时价格">
-              {{ formatNumber(detailBooster.price, 'currency') }}
+            <el-descriptions-item label="计费模式">
+              {{ detailBooster.pricingModeLabel }}
             </el-descriptions-item>
-            <el-descriptions-item label="近30日完单率">
-              {{ detailBooster.successRate }}%
+            <el-descriptions-item label="结算方式">
+              {{ detailBooster.settlementLabel }}
             </el-descriptions-item>
-            <el-descriptions-item label="平均响应时间">
-              {{ detailBooster.avgResponse }}
+            <el-descriptions-item label="结算账号">
+              {{ detailBooster.settlementAccount || '—' }}
+            </el-descriptions-item>
+          </el-descriptions>
+        </section>
+
+        <section class="detail-section" v-if="detailBooster.signature || detailBooster.remark">
+          <h4>说明</h4>
+          <el-descriptions :column="1" border>
+            <el-descriptions-item label="个性签名">
+              {{ detailBooster.signature || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="内部备注">
+              {{ detailBooster.remark || '—' }}
             </el-descriptions-item>
           </el-descriptions>
         </section>
@@ -177,7 +200,7 @@
 
         <section class="detail-section">
           <h4>本周档期</h4>
-          <el-timeline>
+          <el-timeline v-if="detailBooster.schedule.length">
             <el-timeline-item
               v-for="slot in detailBooster.schedule"
               :key="slot.day"
@@ -193,6 +216,7 @@
               </el-tag>
             </el-timeline-item>
           </el-timeline>
+          <el-empty v-else description="暂无排班信息" />
         </section>
       </div>
       <el-empty v-else description="未选择打手" />
@@ -201,93 +225,56 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, getCurrentInstance } from 'vue'
 import { ElMessage } from 'element-plus'
 import Pagination from '@/components/Pagination'
-import { listBoosters, changeBoosterStatus } from '@/api/companion/booster'
+import { listBoosters, changeBoosterStatus, getBooster } from '@/api/companion/booster'
 import useUserStore from '@/store/modules/user'
+
+const { proxy } = getCurrentInstance() || {}
+const dictRefs = proxy?.useDict ? proxy.useDict('companion_service_mode') : {}
+const serviceModeDict = dictRefs?.companion_service_mode || ref([])
 
 const loading = ref(false)
 const boosterList = ref([])
 const total = ref(0)
+const pricingOptions = ref([])
 
 const queryParams = reactive({
   pageNum: 1,
   pageSize: 10,
   keyword: '',
-  game: '',
+  pricingMode: '',
   status: ''
 })
 
-const gameOptions = ['王者荣耀', '英雄联盟', '永劫无间', 'APEX 英雄', '绝地求生']
-const statusFilters = [
-  { label: '在线', value: 'online' },
-  { label: '忙碌', value: 'busy' },
-  { label: '休息', value: 'rest' }
+const statusConfig = [
+  { value: 'online', label: '在线', tagType: 'success', toggleTarget: 'rest' },
+  { value: 'rest', label: '休息', tagType: 'info', toggleTarget: 'online' },
+  { value: 'busy', label: '忙碌', tagType: 'warning', toggleTarget: 'online' },
+  { value: 'disabled', label: '停用', tagType: 'danger', toggleTarget: 'online' },
+  { value: '0', label: '在线', tagType: 'success', toggleTarget: '1', normalized: 'online' },
+  { value: '1', label: '休息', tagType: 'info', toggleTarget: '0', normalized: 'rest' }
 ]
 
-const statusMeta = {
-  online: { label: '在线', tagType: 'success' },
-  busy: { label: '忙碌', tagType: 'warning' },
-  rest: { label: '休息', tagType: 'info' }
-}
+const statusFilters = statusConfig.filter((item) =>
+  ['online', 'rest', 'busy', 'disabled'].includes(item.value)
+)
 
-const fallbackBoosters = [
-  {
-    boosterId: 1001,
-    name: '花落成双',
-    games: ['王者荣耀', '和平精英'],
-    rank: '最强王者 · 158星',
-    price: 68,
-    ordersThisWeek: 12,
-    avgResponse: '5分钟',
-    rating: 4.9,
-    successRate: 98,
-    status: 'online',
-    tags: ['峡谷冲分', '情绪管理'],
-    schedule: [
-      { day: '周一', slots: ['19:00-23:00'] },
-      { day: '周三', slots: ['20:00-24:00'] },
-      { day: '周六', slots: ['14:00-18:00', '20:00-24:00'] }
-    ]
-  },
-  {
-    boosterId: 1002,
-    name: '北城以南',
-    games: ['英雄联盟'],
-    rank: '韩服大师 · 前150',
-    price: 88,
-    ordersThisWeek: 15,
-    avgResponse: '8分钟',
-    rating: 4.8,
-    successRate: 95,
-    status: 'busy',
-    tags: ['中单带飞', 'BP 构建'],
-    schedule: [
-      { day: '周二', slots: ['19:00-23:00'] },
-      { day: '周四', slots: ['20:00-24:00'] },
-      { day: '周日', slots: ['15:00-18:00'] }
-    ]
-  },
-  {
-    boosterId: 1003,
-    name: '南巷清风',
-    games: ['永劫无间', 'APEX 英雄'],
-    rank: '赛季天选 · 前1%',
-    price: 78,
-    ordersThisWeek: 9,
-    avgResponse: '10分钟',
-    rating: 4.7,
-    successRate: 92,
-    status: 'rest',
-    tags: ['吃鸡带飞', '语音指挥'],
-    schedule: [
-      { day: '周三', slots: ['19:00-22:00'] },
-      { day: '周五', slots: ['20:00-24:00'] },
-      { day: '周日', slots: ['14:00-18:00'] }
-    ]
+const statusMeta = statusConfig.reduce((acc, item) => {
+  acc[item.value] = item
+  if (item.normalized) {
+    acc[item.normalized] = { ...item, value: item.normalized }
   }
-]
+  return acc
+}, {})
+
+const settlementMeta = {
+  bank: '银行卡',
+  alipay: '支付宝',
+  wechat: '微信',
+  other: '其他'
+}
 
 const selectedIds = ref([])
 const detailVisible = ref(false)
@@ -298,6 +285,94 @@ const roles = computed(() => userStore.roles || [])
 
 const isManager = computed(() => roles.value.includes('manager') || roles.value.includes('admin'))
 const isBoss = computed(() => roles.value.includes('boss'))
+
+const serviceModeLabel = (value) => {
+  const dict = serviceModeDict.value || []
+  const target = dict.find((item) => item.value === value)
+  return target ? target.label : value || '未设置'
+}
+
+const settlementLabel = (value) => settlementMeta[value] || value || '未设置'
+
+const normalizeList = (value) => {
+  if (!value) {
+    return []
+  }
+  if (Array.isArray(value)) {
+    return value.filter(Boolean)
+  }
+  return String(value)
+    .split(/[，,]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+const parseSchedule = (calendarJson) => {
+  if (!calendarJson) {
+    return []
+  }
+  try {
+    const data = JSON.parse(calendarJson)
+    if (Array.isArray(data)) {
+      return data.map((item, index) => ({
+        day: item.day || item.label || `档期${index + 1}`,
+        slots: normalizeList(item.slots)
+      }))
+    }
+    if (typeof data === 'object') {
+      return Object.entries(data).map(([day, slots]) => ({
+        day,
+        slots: normalizeList(slots)
+      }))
+    }
+  } catch (error) {
+    console.warn('[booster] calendarJson 解析失败', error)
+  }
+  return []
+}
+
+const normalizeBooster = (item = {}) => {
+  const tags = normalizeList(item.skillTags)
+  const games = normalizeList(item.skillTags || item.pricingMode)
+  const rank = item.levelDesc || '—'
+  const price = Number(item.unitPrice ?? item.defaultRate ?? 0)
+  const rating = Number(item.rating ?? 0) || 5
+  const avgResponse = item.avgResponse || '—'
+  const successRate = item.successRate ?? '--'
+  const status = item.status ?? 'online'
+  return {
+    ...item,
+    name: item.realName || item.boosterCode || '未命名',
+    games,
+    tags,
+    rank,
+    price,
+    ordersThisWeek: item.ordersThisWeek ?? 0,
+    avgResponse,
+    rating,
+    successRate,
+    pricingModeLabel: serviceModeLabel(item.pricingMode),
+    settlementLabel: settlementLabel(item.settlementType),
+    schedule: parseSchedule(item.calendarJson),
+    status
+  }
+}
+
+const buildPricingOptions = (rows = []) => {
+  const seen = new Set()
+  const options = []
+  rows.forEach((item) => {
+    if (!item.pricingMode || seen.has(item.pricingMode)) {
+      return
+    }
+    seen.add(item.pricingMode)
+    options.push({
+      value: item.pricingMode,
+      label: serviceModeLabel(item.pricingMode)
+    })
+  })
+  pricingOptions.value = options
+}
 
 const formatNumber = (value, format) => {
   const number = Number(value || 0)
@@ -318,8 +393,8 @@ const buildQuery = () => {
   if (queryParams.keyword) {
     query.keyword = queryParams.keyword
   }
-  if (queryParams.game) {
-    query.game = queryParams.game
+  if (queryParams.pricingMode) {
+    query.pricingMode = queryParams.pricingMode
   }
   if (queryParams.status) {
     query.status = queryParams.status
@@ -330,13 +405,14 @@ const buildQuery = () => {
 const fetchBoosters = async () => {
   loading.value = true
   try {
-    const { rows, total: count } = await listBoosters(buildQuery())
-    boosterList.value = Array.isArray(rows) && rows.length ? rows : fallbackBoosters
+    const { rows = [], total: count } = await listBoosters(buildQuery())
+    boosterList.value = rows.map(normalizeBooster)
     total.value = typeof count === 'number' ? count : boosterList.value.length
+    buildPricingOptions(rows)
   } catch (error) {
-    console.warn('[booster] 获取打手列表失败，使用默认数据。', error)
-    boosterList.value = fallbackBoosters
-    total.value = fallbackBoosters.length
+    console.warn('[booster] 获取打手列表失败', error)
+    boosterList.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
@@ -349,7 +425,7 @@ const handleQuery = () => {
 
 const resetQuery = () => {
   queryParams.keyword = ''
-  queryParams.game = ''
+  queryParams.pricingMode = ''
   queryParams.status = ''
   queryParams.pageNum = 1
   fetchBoosters()
@@ -359,13 +435,24 @@ const handleSelectionChange = (selection) => {
   selectedIds.value = selection.map((item) => item.boosterId)
 }
 
-const openDetail = (row) => {
-  detailBooster.value = row
+const openDetail = async (row) => {
   detailVisible.value = true
+  detailBooster.value = normalizeBooster(row)
+  if (!row || !row.boosterId) {
+    return
+  }
+  try {
+    const { data } = await getBooster(row.boosterId)
+    if (data) {
+      detailBooster.value = normalizeBooster(data)
+    }
+  } catch (error) {
+    console.warn('[booster] 获取打手详情失败', error)
+  }
 }
 
 const handleAdd = () => {
-  ElMessage.info('请在后端配置打手信息表单后，再做新增操作。')
+  ElMessage.info('请在后端配置打手信息表单后，再做新增操作')
 }
 
 const handleAssign = (row) => {
@@ -377,15 +464,19 @@ const handleBook = (row) => {
 }
 
 const handleToggleStatus = async (row) => {
-  const nextStatus = row.status === 'online' ? 'rest' : 'online'
+  const meta = statusMeta[row.status] || statusMeta[row.normalizedStatus]
+  if (!meta || !meta.toggleTarget) {
+    ElMessage.warning('当前状态不支持切换')
+    return
+  }
+  const nextStatus = meta.toggleTarget
   try {
     await changeBoosterStatus(row.boosterId, nextStatus)
-    row.status = nextStatus
     ElMessage.success('状态已更新')
+    fetchBoosters()
   } catch (error) {
-    console.warn('[booster] 更新状态失败，已启用本地回退。', error)
-    row.status = nextStatus
-    ElMessage.warning('接口未就绪，已临时更新本地状态')
+    console.warn('[booster] 更新状态失败', error)
+    ElMessage.error('状态更新失败，请稍后重试')
   }
 }
 
@@ -456,3 +547,4 @@ fetchBoosters()
   }
 }
 </style>
+
