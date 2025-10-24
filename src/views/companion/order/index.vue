@@ -290,6 +290,14 @@ const statusFilters = Object.entries(statusMap).map(([value, meta]) => ({
   label: meta.label
 }))
 
+const payStatusMap = {
+  unpaid: '未支付',
+  paid: '已支付',
+  partial: '部分支付',
+  refunding: '退款中',
+  refunded: '已退款'
+}
+
 const summary = reactive({
   pending: 0,
   inProgress: 0,
@@ -365,8 +373,10 @@ const serviceModeLabel = (value) => {
 const settlementLabel = (value) => {
   const dict = settlementDict.value || []
   const target = dict.find((item) => item.value === value)
-  return target ? target.label : value || '未设置'
+  return target ? target.label : value || '—'
 }
+
+const payStatusLabel = (value) => payStatusMap[value] || value || '—'
 
 const buildTimeline = (order) => {
   const items = []
@@ -426,7 +436,7 @@ const normalizeOrder = (item = {}) => {
     requirement: item.bossRemark || '',
     internalRemark: item.internalRemark || '',
     settlementLabel: settlementLabel(item.settlementStatus),
-    payStatusLabel: item.payStatus ? statusLabel(item.payStatus) || item.payStatus : '—',
+    payStatusLabel: payStatusLabel(item.payStatus),
     timeline: buildTimeline(item)
   }
 }
@@ -677,4 +687,3 @@ watch(
   line-height: 1.6;
 }
 </style>
-
