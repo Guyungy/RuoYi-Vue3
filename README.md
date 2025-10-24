@@ -24,6 +24,42 @@ yarn build:prod
 
 默认 API 入口为 `/dev-api`，可在 `.env.*` 中按环境修改。若需使用本地静态菜单，可在环境变量中新增 `VITE_USE_LOCAL_MENU = 'true'`。
 
+## 后端联调
+
+项目已内置陪玩业务接口，搭配同目录下的后端工程 `RuoYi-Vue-fast` 即可直接联调。
+
+1. **准备数据库**
+   - 本地启动 MySQL，创建库：`CREATE DATABASE IF NOT EXISTS \`ry-vue\` DEFAULT CHARSET utf8mb4;`
+   - 导入后端工程 `sql/ry_20250522.sql`（含系统初始数据）。
+2. **配置后端**
+   - 后端默认账号：`root / 12345678`。若不同，请修改 `RuoYi-Vue-fast/src/main/resources/application-druid.yml`。
+   - 如需关闭验证码，可在后台系统参数 `sys.account.captchaEnabled` 置为 `false`。
+3. **启动后端**
+   ```bash
+   cd RuoYi-Vue-fast
+   D:\GitHub\apache-maven-3.9.6\bin\mvn.cmd package -DskipTests
+   java -jar target\ruoyi.jar
+   ```
+   成功后可通过 `http://localhost:8080/dev-api/captchaImage` 验证接口存活。
+4. **启动前端**
+   - 确认 `.env.development` 中 `VITE_USE_LOCAL_MENU = 'false'`。
+   - 执行 `yarn dev`，默认管理员账号 `admin / admin123`，登录后即可看到陪玩仪表盘、打手管理、订单管理等菜单。
+
+### 新增 API 列表
+
+所有接口均需要登录后携带 `Authorization: Bearer <token>` 访问：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/companion/boosters` | 打手列表，支持 `keyword`、`game`、`status`、分页参数 |
+| PATCH | `/companion/boosters/{id}/status` | 切换打手上下线状态 |
+| GET | `/companion/orders` | 订单列表，支持 `scope`（manager/boss/personal）、`status`、`game` 等筛选 |
+| PATCH | `/companion/orders/{id}/assign` | 指派／回流订单 |
+| PATCH | `/companion/orders/{id}/status` | 更新订单状态流转 |
+| GET | `/companion/orders/metrics` | 仪表盘指标数据 |
+
+后端会自动根据当前用户角色追加陪玩业务菜单，无需再同步修改 `sys_menu` 表；若需要为老板、打手新增账号，可在后台“系统管理 → 用户管理”中创建，并分配 `boss` 或 `booster` 角色。
+
 ## 目录结构
 
 ```

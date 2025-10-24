@@ -1,8 +1,8 @@
-<template>
+﻿<template>
   <div class="login">
     <el-form ref="loginRef" :model="loginForm" :rules="loginRules" class="login-form">
       <h3 class="title">{{ title }}</h3>
-      <p class="subtitle">运营管理员、老板、打手请使用对应账号登录</p>
+      <p class="subtitle">运营管理员、老板和打手请使用对应账号登录</p>
       <el-form-item prop="username">
         <el-input
           v-model="loginForm.username"
@@ -96,22 +96,22 @@ const router = useRouter()
 const { proxy } = getCurrentInstance()
 
 const quickAccounts = [
-  { role: '运营管理员', account: 'manager01', password: 'PlayOps@123' },
-  { role: '老板体验', account: 'boss01', password: 'Boss@123' },
-  { role: '打手体验', account: 'booster01', password: 'Booster@123' }
+  { role: '系统管理员', account: 'admin', password: 'admin123' },
+  { role: '演示账号', account: 'ry', password: 'admin123' },
+  { role: '打手体验', account: 'booster01', password: '请在后台创建' }
 ]
 
 const loginForm = ref({
-  username: 'manager01',
-  password: 'PlayOps@123',
+  username: 'admin',
+  password: 'admin123',
   rememberMe: false,
   code: '',
   uuid: ''
 })
 
 const loginRules = {
-  username: [{ required: true, trigger: 'blur', message: '请输入账号' }],
-  password: [{ required: true, trigger: 'blur', message: '请输入密码' }],
+  username: [{ required: true, trigger: 'blur', message: '请输入您的账号' }],
+  password: [{ required: true, trigger: 'blur', message: '请输入您的密码' }],
   code: [{ required: true, trigger: 'change', message: '请输入验证码' }]
 }
 
