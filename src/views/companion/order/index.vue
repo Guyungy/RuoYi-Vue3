@@ -65,6 +65,14 @@
     </el-card>
 
     <el-card shadow="never">
+      <div class="table-toolbar" v-if="isManager">
+        <el-space wrap>
+          <el-button type="primary" @click="handleAddOrder">新建订单</el-button>
+          <el-button type="danger" plain :disabled="!selectedIds.length" @click="handleBatchRemove">
+            批量删除
+          </el-button>
+        </el-space>
+      </div>
       <el-table
         v-loading="loading"
         :data="orderList"
@@ -92,10 +100,11 @@
         </el-table-column>
         <el-table-column prop="startAt" label="开局时间" min-width="160" />
         <el-table-column prop="createdAt" label="下单时间" min-width="160" />
-        <el-table-column label="操作" min-width="280" fixed="right">
+        <el-table-column label="操作" min-width="320" fixed="right">
           <template #default="scope">
             <el-space wrap size="small">
               <el-button link type="primary" @click="openDetail(scope.row)">详情</el-button>
+              <el-button v-if="isManager" link type="primary" @click="handleEdit(scope.row)">编辑</el-button>
               <el-button
                 v-if="isManager && scope.row.status === 'dispatching'"
                 link
@@ -152,6 +161,15 @@
               >
                 提交结果
               </el-button>
+              <el-popconfirm
+                v-if="isManager"
+                title="确认删除该订单？"
+                @confirm="handleDelete(scope.row)"
+              >
+                <template #reference>
+                  <el-button link type="danger">删除</el-button>
+                </template>
+              </el-popconfirm>
             </el-space>
           </template>
         </el-table-column>
@@ -234,6 +252,188 @@
       </div>
       <el-empty v-else description="请选择订单" />
     </el-drawer>
+
+    <el-dialog
+      v-model="formVisible"
+      :title="formModel.orderId ? '编辑订单' : '新建订单'"
+      width="780px"
+      destroy-on-close
+    >
+      <el-form ref="formRef" :model="formModel" :rules="formRules" label-width="110px">
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="老板ID" prop="bossId">
+              <el-input-number v-model="formModel.bossId" :min="1" :precision="0" controls-position="right" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="打手ID">
+              <el-input-number
+                v-model="formModel.boosterId"
+                :min="0"
+                :precision="0"
+                controls-position="right"
+                placeholder="可选填"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="项目编码" prop="projectCode">
+              <el-select
+                v-model="formModel.projectCode"
+                placeholder="请输入或选择项目"
+                filterable
+                allow-create
+                default-first-option
+              >
+                <el-option
+                  v-for="item in projectOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="游戏/项目">
+              <el-input v-model="formModel.gameName" placeholder="如：王者荣耀·双排" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="服务模式" prop="serviceMode">
+              <el-select v-model="formModel.serviceMode" placeholder="请选择服务模式">
+                <el-option
+                  v-for="item in serviceModeOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="语音需求">
+              <el-switch v-model="formModel.voiceRequired" active-value="1" inactive-value="0" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="预计时长" prop="duration">
+              <el-input-number
+                v-model="formModel.duration"
+                :min="0.5"
+                :step="0.5"
+                :precision="1"
+                controls-position="right"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="小时单价" prop="unitPrice">
+              <el-input-number
+                v-model="formModel.unitPrice"
+                :min="0"
+                :step="10"
+                :precision="2"
+                controls-position="right"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="优惠金额">
+              <el-input-number
+                v-model="formModel.discountAmount"
+                :min="0"
+                :step="10"
+                :precision="2"
+                controls-position="right"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="订单金额">
+              <el-input v-model="formModel.amountDisplay" disabled />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="应付金额">
+              <el-input v-model="formModel.payableAmountDisplay" disabled />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="订单状态">
+              <el-select v-model="formModel.orderStatus">
+                <el-option
+                  v-for="item in statusFilters"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="支付状态">
+              <el-select v-model="formModel.payStatus">
+                <el-option
+                  v-for="item in payStatusOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="结算状态">
+              <el-select v-model="formModel.settlementStatus">
+                <el-option
+                  v-for="item in settlementStatusOptions"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="开局时间">
+              <el-date-picker
+                v-model="formModel.startTime"
+                type="datetime"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                placeholder="选择开局时间"
+                style="width: 100%;"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="老板备注">
+              <el-input
+                v-model="formModel.bossRemark"
+                type="textarea"
+                :rows="3"
+                placeholder="补充老板诉求、语音偏好等"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="内部备注">
+              <el-input
+                v-model="formModel.internalRemark"
+                type="textarea"
+                :rows="3"
+                placeholder="派单说明、风控提示等"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <el-button @click="formVisible = false">取 消</el-button>
+        <el-button type="primary" :loading="formLoading" @click="submitOrderForm">保 存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -244,9 +444,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import Pagination from '@/components/Pagination'
 import {
   assignOrder,
+  createOrder,
   getOrder,
   getOrderMetrics,
   listOrders,
+  removeOrder,
+  updateOrder,
   updateOrderStatus
 } from '@/api/companion/order'
 import useUserStore from '@/store/modules/user'
@@ -258,11 +461,28 @@ const dictRefs = proxy?.useDict
   : {}
 const serviceModeDict = dictRefs?.companion_service_mode || ref([])
 const settlementDict = dictRefs?.companion_settlement_status || ref([])
+const serviceModeOptions = computed(() => serviceModeDict.value || [])
+const settlementStatusOptions = computed(() => {
+  const dict = settlementDict.value || []
+  return dict.map((item) => ({ value: item.value, label: item.label }))
+})
 
 const loading = ref(false)
 const orderList = ref([])
 const total = ref(0)
 const projectOptions = ref([])
+const formVisible = ref(false)
+const formLoading = ref(false)
+const formRef = ref(null)
+const formModel = reactive(createOrderForm())
+const formRules = {
+  bossId: [{ required: true, message: '请输入老板ID', trigger: 'blur' }],
+  projectCode: [{ required: true, message: '请选择项目', trigger: 'change' }],
+  serviceMode: [{ required: true, message: '请选择服务模式', trigger: 'change' }],
+  duration: [{ required: true, message: '请输入预计时长', trigger: 'blur' }],
+  unitPrice: [{ required: true, message: '请输入小时单价', trigger: 'blur' }]
+}
+const selectedIds = ref([])
 
 const queryParams = reactive({
   pageNum: 1,
@@ -289,6 +509,8 @@ const statusFilters = Object.entries(statusMap).map(([value, meta]) => ({
   value,
   label: meta.label
 }))
+const statusLabel = (status) => statusMap[status]?.label || status
+const statusTagType = (status) => statusMap[status]?.tagType || 'info'
 
 const payStatusMap = {
   unpaid: '未支付',
@@ -297,6 +519,7 @@ const payStatusMap = {
   refunding: '退款中',
   refunded: '已退款'
 }
+const payStatusOptions = Object.entries(payStatusMap).map(([value, label]) => ({ value, label }))
 
 const summary = reactive({
   pending: 0,
@@ -353,9 +576,6 @@ const headerSubtitle = computed(() => {
   return '实时监控派单效率与履约表现'
 })
 
-const statusLabel = (status) => statusMap[status]?.label || status
-const statusTagType = (status) => statusMap[status]?.tagType || 'info'
-
 const formatNumber = (value, format) => {
   const number = Number(value || 0)
   if (format === 'currency') {
@@ -377,6 +597,167 @@ const settlementLabel = (value) => {
 }
 
 const payStatusLabel = (value) => payStatusMap[value] || value || '—'
+
+function createOrderForm() {
+  return {
+    orderId: null,
+    orderNo: '',
+    bossId: null,
+    boosterId: null,
+    projectCode: '',
+    gameName: '',
+    serviceMode: '',
+    duration: 1,
+    unitPrice: 0,
+    discountAmount: 0,
+    amount: 0,
+    payableAmount: 0,
+    amountDisplay: '¥0',
+    payableAmountDisplay: '¥0',
+    orderStatus: 'dispatching',
+    payStatus: 'unpaid',
+    settlementStatus: 'pending',
+    voiceRequired: '0',
+    startTime: '',
+    bossRemark: '',
+    internalRemark: ''
+  }
+}
+
+const updateAmountPreview = () => {
+  const duration = Number(formModel.duration || 0)
+  const unitPrice = Number(formModel.unitPrice || 0)
+  const discount = Number(formModel.discountAmount || 0)
+  const amount = Number((duration * unitPrice).toFixed(2))
+  const payable = Number(Math.max(amount - discount, 0).toFixed(2))
+  formModel.amount = amount
+  formModel.payableAmount = payable
+  formModel.amountDisplay = formatNumber(amount, 'currency')
+  formModel.payableAmountDisplay = formatNumber(payable, 'currency')
+}
+
+watch(
+  () => [formModel.duration, formModel.unitPrice, formModel.discountAmount],
+  updateAmountPreview,
+  { immediate: true }
+)
+
+const fillOrderForm = (data = {}) => {
+  const base = createOrderForm()
+  Object.assign(formModel, base, {
+    ...data,
+    bossId: data.bossId ?? data.boss?.bossId ?? base.bossId,
+    boosterId: data.boosterId ?? data.booster?.boosterId ?? base.boosterId,
+    duration: Number(data.duration ?? base.duration),
+    unitPrice: Number(data.unitPrice ?? base.unitPrice),
+    discountAmount: Number(data.discountAmount ?? base.discountAmount),
+    orderStatus: data.orderStatus || base.orderStatus,
+    payStatus: data.payStatus || base.payStatus,
+    settlementStatus: data.settlementStatus || base.settlementStatus,
+    voiceRequired: data.voiceRequired ?? base.voiceRequired,
+    startTime: data.startTime ? parseTime(data.startTime, '{y}-{m}-{d} {h}:{i}:{s}') : ''
+  })
+  if (data.amount != null) {
+    formModel.amount = Number(data.amount)
+  }
+  if (data.payableAmount != null) {
+    formModel.payableAmount = Number(data.payableAmount)
+  }
+  updateAmountPreview()
+}
+
+const buildOrderPayload = () => ({
+  orderId: formModel.orderId,
+  orderNo: formModel.orderNo,
+  bossId: formModel.bossId,
+  boosterId: formModel.boosterId || null,
+  projectCode: formModel.projectCode,
+  gameName: formModel.gameName,
+  serviceMode: formModel.serviceMode,
+  duration: formModel.duration,
+  unitPrice: formModel.unitPrice,
+  discountAmount: formModel.discountAmount || 0,
+  amount: formModel.amount,
+  payableAmount: formModel.payableAmount,
+  orderStatus: formModel.orderStatus,
+  payStatus: formModel.payStatus,
+  settlementStatus: formModel.settlementStatus,
+  startTime: formModel.startTime || null,
+  voiceRequired: formModel.voiceRequired,
+  bossRemark: formModel.bossRemark,
+  internalRemark: formModel.internalRemark
+})
+
+const handleAddOrder = () => {
+  Object.assign(formModel, createOrderForm())
+  updateAmountPreview()
+  formVisible.value = true
+}
+
+const handleEdit = async (row) => {
+  const targetId = row?.id || row?.orderId
+  if (!targetId) return
+  try {
+    const { data } = await getOrder(targetId)
+    fillOrderForm(data || { orderId: targetId })
+    formVisible.value = true
+  } catch (error) {
+    console.warn('[order] 获取订单信息失败', error)
+  }
+}
+
+const submitOrderForm = () => {
+  if (!formRef.value) return
+  formRef.value.validate(async (valid) => {
+    if (!valid) return
+    formLoading.value = true
+    try {
+      const payload = buildOrderPayload()
+      if (payload.orderId) {
+        await updateOrder(payload)
+      } else {
+        await createOrder(payload)
+      }
+      ElMessage.success('保存成功')
+      formVisible.value = false
+      fetchOrders()
+    } catch (error) {
+      console.warn('[order] 保存订单失败', error)
+    } finally {
+      formLoading.value = false
+    }
+  })
+}
+
+const handleDelete = async (row) => {
+  if (!row?.id) return
+  try {
+    await removeOrder([row.id])
+    ElMessage.success('删除成功')
+    fetchOrders()
+  } catch (error) {
+    console.warn('[order] 删除订单失败', error)
+  }
+}
+
+const handleBatchRemove = async () => {
+  if (!selectedIds.value.length) return
+  try {
+    await ElMessageBox.confirm(`确认删除选中的 ${selectedIds.value.length} 笔订单吗？`, '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await removeOrder(selectedIds.value)
+    ElMessage.success('批量删除成功')
+    fetchOrders()
+  } catch (error) {
+    if (error === 'cancel') {
+      return
+    }
+    console.warn('[order] 批量删除失败', error)
+  }
+}
 
 const buildTimeline = (order) => {
   const items = []
@@ -550,7 +931,6 @@ const resetQuery = () => {
   fetchOrders()
 }
 
-const selectedIds = ref([])
 const detailVisible = ref(false)
 const detailOrder = ref(null)
 

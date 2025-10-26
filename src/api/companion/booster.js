@@ -40,9 +40,9 @@ export const changeBoosterStatus = (boosterId, status) => {
 }
 
 export const removeBooster = (boosterIds) => {
+  const ids = Array.isArray(boosterIds) ? boosterIds.join(',') : boosterIds
   return request({
-    url: '/companion/boosters',
-    method: 'delete',
-    data: boosterIds
+    url: `/companion/boosters/${ids}`,
+    method: 'delete'
   })
 }

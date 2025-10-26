@@ -39,6 +39,18 @@ const companionMenus = [
           roles: ['manager'],
           viewScope: 'manager'
         }
+      },
+      {
+        component: 'companion/boss/index',
+        hidden: false,
+        name: 'BossManagement',
+        path: 'bosses',
+        meta: {
+          title: '老板管理',
+          icon: 'peoples',
+          roles: ['manager'],
+          viewScope: 'manager'
+        }
       }
     ]
   },
